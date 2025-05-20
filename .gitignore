@@ -1,0 +1,74 @@
+# Python开发基础忽略规则
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+*.so
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.coverage.*
+.ipynb_checkpoints/
+
+# 虚拟环境相关
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+pip-selfcheck.json
+
+# 打包和构建产物
+build/
+dist/
+*.dist-info
+*.whl
+*.tar.gz
+
+# IDE配置文件
+.vscode/
+.idea/
+.project
+.pydevproject
+*.sublime-workspace
+*.swp
+*.swo
+
+# 环境变量文件
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# 日志和临时文件
+*.log
+*.sqlite
+*.sql
+*.pot
+*.mo
+*.tmp
+
+# 操作系统生成文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 测试相关
+test-results/
+tests/.pytest_cache/
+
+# Jupyter Notebook
+*.ipynb
+!*.ipynb_checkpoints/
+
+# 文档生成
+docs/_build/
+site/
+
+# 依赖管理
+Pipfile
+Pipfile.lock
+poetry.lock
