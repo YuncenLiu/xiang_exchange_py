@@ -15,14 +15,81 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+local_path = "/Users/xiang/Desktop/dapi_exchange/"
+linux_path = "/share/infa_shared/TgtFiles/bi/liscron/"
 
-def get_file_info(file_path: str) -> None:
+file_path = linux_path
+
+local_minio_url = "cloud-minio-data-10-5-3-176:8082"
+linux_minio_url = "10.5.3.178:9000"
+
+minio_url = linux_minio_url
+
+# 2025709288553429959 再保数据，好管家和非趸交团险短险数据            每月月初再保数据.zip
+# 2025310044132876668 上分统计数据                               sftjsj-1.xlsx
+# 2025310064655143366 保单明细打印数据                            bdmxdy-1.xlsx
+# 2025310078034332520 每月初个单万能险账户价值数据                  万能险账户价值数据_个单.zip
+# 2025310099331360202 每月初准备金数据                            准备金数据.zip
+# 2025312234481240576 每月初理赔金数据                            赔案准备金数据.zip
+
+
+# 邮件信息 源数据
+mail_info = [
+    {
+        "id": 1,
+        "mailId": 2025709288553429959,
+        "filePath": f"{file_path}每月月初再保数据.zip"
+    },
+    {
+        "id": 2,
+        "mailId": 2025310044132876668,
+        "filePath": f"{file_path}sftjsj-1.xlsx"
+    },
+    {
+        "id": 3,
+        "mailId": 2025310064655143366,
+        "filePath": f"{file_path}bdmxdy-1.xlsx"
+    },
+    {
+        "id": 4,
+        "mailId": 2025310078034332520,
+        "filePath": f"{file_path}万能险账户价值数据_个单.zip"
+    },
+    {
+        "id": 5,
+        "mailId": 2025310099331360202,
+        "filePath": f"{file_path}准备金数据.zip"
+    },
+    {
+        "id": 6,
+        "mailId": 2025312234481240576,
+        "filePath": f"{file_path}赔案准备金数据.zip"
+    }
+]
+
+
+def get_mail_info_by_id(input_num_id: str, mail_info_list: list) -> dict:
+    """
+    根据 input_num 查找 mail_info 中对应的对象。
+
+    :param input_num_id: 要查找的 id 值
+    :param mail_info_list: 邮件信息列表
+    :return: 匹配的 mail_info 对象，未找到时返回 None
+    """
+    for mail in mail_info_list:
+        if str(mail.get("id")) == input_num_id:
+            return mail
+    return None
+
+
+def get_file_info(verify_file: dict) -> None:
     """
     获取文件的大小和文件类型，并打印相关信息。
 
-    :param file_path: 文件的路径
+    :param verify_file: 邮件信息
     """
     # 使用 Path 来解析文件后缀（文件类型）
+    file_path = verify_file.get("filePath")
     file = Path(file_path)
 
     if not file.is_file():
@@ -36,14 +103,16 @@ def get_file_info(file_path: str) -> None:
     logging.info(f"文件类型: {file_type}")
 
 
-def upload_file_to_minio(file_path: str, bucket_name: str = "exchange-module") -> None:
+def upload_file_to_minio(send_mail_info: dict, bucket_name: str = "exchange-module") -> None:
     """
     将指定文件上传到 MinIO 的指定桶中，并使用日期目录和时间戳重命名文件。
 
-    :param file_path: 文件路径
+    :param send_mail_info: 邮件信息
     :param bucket_name: 目标桶名称
     """
     # 创建 Path 对象
+    file_path = send_mail_info.get("filePath")
+    mail_id = send_mail_info.get("mailId")
     file = Path(file_path)
 
     if not file.is_file():
@@ -57,16 +126,8 @@ def upload_file_to_minio(file_path: str, bucket_name: str = "exchange-module") -
     )
 
     # MinIO 连接配置（请根据实际情况修改）
-    # client = Minio(
-    #     "cloud-minio-10-5-1-236:8080",  # MinIO 服务地址
-    #     access_key="VgqABlPoZYMFZOsR89gh",
-    #     secret_key="YXL3c6Kd7bslsyXGOQwFAEFBypi9GkfkYPezcY8I",
-    #     secure=False,  # 使用 HTTPS
-    #     http_client=http_client
-    # )
-
     client = Minio(
-        "cloud-minio-data-10-5-3-176:8082",  # MinIO 服务地址
+        minio_url,  # MinIO 服务地址
         access_key="igiylPwL3gz8CLrT0M1a",
         secret_key="pLNbAHRj1nT0pz3Bsj9M3In15GbXnMDqblUbFTuS",
         secure=False,  # 使用 HTTPS
@@ -102,31 +163,41 @@ def upload_file_to_minio(file_path: str, bucket_name: str = "exchange-module") -
             file_path=str(file),
         )
         logging.info(f"文件 '{file_path}' 成功上传到桶 '{bucket_name}' 中，对象名为 '{object_name}'")
-        return send_dapi_server(object_name)
+
+        send_file_mail_info = {
+            **send_mail_info,
+            "file_object": object_name  # 新增 file_object 元素
+        }
+
+        return send_dapi_server(file_mail_info=send_file_mail_info)
     except S3Error as err:
         logging.error(f"上传失败: {err}")
 
 
-def send_mail_server(headers, link, password):
-    add_mail_url = "http://10.5.3.176:8082/api/xiang-mail/mail/submit"
-    add_mail_data = {
-        "mailTmpId": "2025401930861579817",
-        "subject": "2024_733需求-测试",
-        "fillValueList": [
-            {
-                "input": "userName",
-                "$cellEdit": "true",
-                "$index": 0,
-                "index": "",
-                "value": "测试老师你好"
-            },
-            {
-                "input": "taskName",
-                "$cellEdit": "true",
-                "$index": 1,
-                "index": "",
-                "value": "2024-773需求-测试任务"
-            },
+def update_mail_and_send(file_mail: dict, headers, link: str, password: str):
+    mail_id = file_mail.get("mailId")
+
+    """
+    调用接口，获取详细信息，供发送邮件使用
+    """
+    detail_mail_url = f"http://10.5.3.176:8082/api/xiang-mail/mail/detail?id={mail_id}"
+    detail_mail = requests.get(
+        url=detail_mail_url,
+        headers=headers
+    )
+
+    # 打印响应内容（调试用）
+    logging.info("获取邮件详情，请求状态码: %s", detail_mail.status_code)
+    logging.info("获取邮件详情，请求响应内容: %s", detail_mail.text)
+
+    detail_mail_info = detail_mail.json()
+    detail_mail_succ = detail_mail_info.get('success')
+
+    if detail_mail_succ is True:
+        logging.info('查询邮件详情成功')
+        logging.info(detail_mail_info)
+        detail_mail_info = detail_mail_info.get('data')
+        newFillValueList = [
             {
                 "input": "mail_file_link",
                 "$cellEdit": "true",
@@ -141,27 +212,15 @@ def send_mail_server(headers, link, password):
                 "index": "",
                 "value": password
             }
-        ],
-        "consigneeList": [
-            "array_xiangxiang@163.com"
-        ],
-        "recipientsList": [],
-        "queryTime": "",
-        "id": "2025709288553429959",
-        "createUser": "202411141129378390",
-        "updateUser": -1,
-        "updateTime": "",
-        "status": 1,
-        "isDeleted": 0,
-        "recipients": "[]",
-        "fileUrl": "null",
-        "fileUrlList": [],
-        "fileName": "",
-        "mailLogId": -1,
-        "$index": 0,
-        "$mailTmpId": "数据交付 对内 链接 data_alarm"
-    }
+        ]
+        detail_mail_info["fillValueList"] = newFillValueList
+        logging.info(detail_mail_info)
 
+    """
+    调用接口，修改当前最新的文件信息
+    """
+    add_mail_url = "http://10.5.3.176:8082/api/xiang-mail/mail/submit"
+    add_mail_data = detail_mail_info
     try:
         # 发送 POST 请求
         mail_res = requests.post(
@@ -179,6 +238,7 @@ def send_mail_server(headers, link, password):
 
         if mail_succ is True:
             logging.info('新增邮件成功, 邮件信息')
+
             send_mail_url = "http://10.5.3.176:8082/api/xiang-mail/mail/send-mail"
             try:
                 send_mail_res = requests.post(
@@ -197,11 +257,8 @@ def send_mail_server(headers, link, password):
                     logging.info('发送邮件成功，请注意查收，收件人：%s', add_mail_data.get('consigneeList'))
                 else:
                     logging.error('发送邮件失败')
-
-
             except requests.exceptions.RequestException as e:
                 logging.info("发送邮件失败: %s", e)
-
 
         else:
             logging.error("新增邮件失败")
@@ -210,8 +267,11 @@ def send_mail_server(headers, link, password):
         logging.info("新增邮件失败: %s", e)
 
 
-def send_dapi_server(upload_file_path):
-    # 定义请求URL
+def send_dapi_server(file_mail_info):
+    upload_file_path = file_mail_info.get("file_object")
+    """
+    鉴权部分，使用 api 用户进行操作
+    """
     get_token_url = (
         "http://10.5.3.176:8082/api/xiang-auth/oauth/token"
         "?tenant_id=000000"
@@ -220,16 +280,12 @@ def send_dapi_server(upload_file_path):
         "&grant_type=password"
         "&scope=all"
     )
-
-    # 设置请求头
     headers = {
         'Authorization': 'Basic c2FiZXI6c2FiZXJfc2VjcmV0'
     }
-
     # 发送 POST 请求
     try:
         response = requests.post(get_token_url, headers=headers)
-
         # 打印响应内容（调试用）
         logging.info("登录认证，请求状态码: %s", response.status_code)
         logging.info("登录认证，请求响应内容: %s", response.text)
@@ -248,7 +304,10 @@ def send_dapi_server(upload_file_path):
             print("请求失败，请检查服务是否正常运行或凭据是否正确")
 
         if access_token:
-            # 要请求的接口地址
+            """
+            调用接口，生成 Url 分享地址，获取上传的文件
+            策略： 3 天内，下载 1 次
+            """
             send_dapi_exchange_url = "http://10.5.3.176:8082/api/xiang-exchange/exchange-log/add-share"
 
             # 请求头
@@ -291,21 +350,19 @@ def send_dapi_server(upload_file_path):
                     # link_data_valid_period = link_data.get('validPeriod')
                     # link_data_number_of_down = link_data.get('numberOfDown')
                     logging.info("生成链接成功，链接地址：【%s】， 提取码：【%s】，", link_data_share_link, link_data_pass_code)
-                    send_mail_server(headers, link_data_share_link, link_data_pass_code)
-
-
+                    update_mail_and_send(file_mail=file_mail_info,
+                                         headers=headers,
+                                         link=link_data_share_link,
+                                         password=link_data_pass_code)
 
                 else:
                     logging.error("生成链接失败")
                     return None
-
                 # 返回响应对象，供后续处理使用
                 return exchange_response
-
             except requests.exceptions.RequestException as e:
                 logging.error("请求过程中发生错误: %s", e)
                 return None
-
     except requests.exceptions.RequestException as e:
         logging.info("请求过程中发生错误: %s", e)
 
@@ -313,12 +370,19 @@ def send_dapi_server(upload_file_path):
 # 从命令行参数获取路径
 if __name__ == "__main__":
 
-    input_path = ""
+    input_num = ""
     if len(sys.argv) < 2:
         print("请提供一个路径作为参数。")
-        input_path = input("请输入路径: ")
+        input_num = input("请输入路径: ")
     else:
-        input_path = sys.argv[1]
+        input_num = sys.argv[1]
 
-    get_file_info(input_path)
-    upload_file_to_minio(input_path)
+    # 根据 input_num 的值匹配  mail_info 的id，如果匹配到了，就返回匹配到的 json 对象
+    matched_mail_info = get_mail_info_by_id(input_num, mail_info)
+    if matched_mail_info:
+        print(f"找到匹配的 mail_info 对象: {matched_mail_info}")
+    else:
+        raise ValueError("未找到匹配的对象")
+
+    get_file_info(verify_file=matched_mail_info)
+    upload_file_to_minio(send_mail_info=matched_mail_info)
